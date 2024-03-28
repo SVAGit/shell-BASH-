@@ -1,5 +1,7 @@
+#include <stdlib.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <sys/wait.h>
 
 typedef enum{
     INTERNAL, EXTERNAL
@@ -16,7 +18,6 @@ typedef enum{
 char* signals[] = {"-SIGHUP", "-SIGINT", "-SIGQUIT", "-SIGILL", "-SIGTRAP","-SIGABRT", "-SIGBUS", "-SIGFPE", "-SIGKILL", "-SIGUSR1", "-SIGSEGV", "-SIGUSR2", "-SIGPIPE", "-SIGALRM", "-SIGTERM", "-SIGSTKFLT", "-SIGCHLD", "-SIGCONT", "-SIGSTOP", "-SIGTSTP", "-SIGTTIN", "-SIGTTOU", "-SIGURG", "-SIGXCPU"};
 
 typedef struct process{
-    char** argv;
     pid_t pid;
     State state;
     Status status;
@@ -89,8 +90,7 @@ void checkJobs(job* jobs){
 
 void addProcess(struct process** ptr, pid_t pid, char** command, State state, Type type){
     if(*ptr == NULL){
-        *ptr = calloc(1, sizeof(struct process));
-        (*ptr)->argv = command;
+        *ptr = (struct process*) calloc(1, sizeof(struct process));
         (*ptr)->pid = pid;
         (*ptr)->state = state;
         (*ptr)->type = type;
