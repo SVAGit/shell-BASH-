@@ -1,0 +1,49 @@
+SUPPORTED FUNCTIONS
+
+STATE FLAGS:
+    SINOPSIS:
+        pipeline [state flag]
+
+    [without flag] - foreground application;
+    [&] - background application.
+
+
+
+LOGIC FLAGS:
+    SINOPSIS:
+        pipeline [logic flag] pipeline
+
+    [&&] - logic and;
+    [||] - logic or;
+    [;] - sequential execution.
+
+
+
+REDIRECTION FLAGS:
+    SINOPSIS:
+        fileName|command [redirect flag] fileName
+    
+    [>] - default redirect;
+    [>&] - default redirect with STDERR_FILENO dup;
+    [>>] - redirect to the end of file;
+    [>>&] - redirect to the end of file with STDERR_FILENO dup;
+    [<] - back defolt redirect from file.
+
+
+
+CONVEYOR FLAGS:
+    SINOPSIS:
+        firstCommand [conveyor flag] secondCommand
+    
+    [|] - firstCommand output will swaped to secondCommand input;
+    [|&] - firstCommand STDOUT_FILENO with STDERR_FILENO output will swaped to secondCommand input;
+
+
+
+EXTERNAL FUNCTIONS:
+    jobs - print all applicating or stopped jobs;
+    fg [NUMBER]- brings the first/indicated by [NUMBER] job to the foreground;
+    bg [NUMBER] - brings the first/indicated by [NUMBER] job to the background;
+    kill -[SIGNAL] [ID]/-[PGID] - report the [SIGNAL] to the process with [ID] or processes with ParentGroupID([PGID]);
+    cd [PATH]/[..] - go to directory in [PATH] parametr, if you want go back use [..] parametr;
+    quit - command that will closed this programm, also you can close this programm with CTRL+D kyebord shortcut.
