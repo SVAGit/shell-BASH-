@@ -21,10 +21,10 @@
 #define NOT_EMPTY 0
 
 void getdata(char* ,char**, char**, char*);
-void readString(char*);
+char* readString(void);
 void redirect(node*);
 void cdFunction(char**);
-int defaultApplication(node*, job*, job*, list*);
+int defaultApplication(node*, job*, job**, list*);
 int conv(node*, job*, job*, list*);
 list* parsString(char*);
 job* applicate(list*, job*);
@@ -32,15 +32,21 @@ void killFunction(char*, char*);
 void fgFunction(job*, char**, int);
 void jobsFunction(job*);
 void quitFunction(job*, list*);
+void deleteList(list*);
+void helpFunction();
+
+char* rootPath;
 
 
-int main(int argc, char** argv){
-    char inputString[256];
+int main(){
+    char* inputString;
     job* jobs = NULL;
+    list* dataBase = NULL;
     char* user;
     char* pwd;
     char host[256];
     char buf[256];
+    rootPath = getcwd(NULL, 128);
     signal(SIGINT, SIG_IGN);
     signal(SIGTTIN, SIG_IGN);
     signal(SIGTTOU, SIG_IGN);
@@ -48,21 +54,21 @@ int main(int argc, char** argv){
     while(1){
         getdata(buf, &user, &pwd, host);
         write(STDOUT_FILENO, buf, strlen(buf));
-        readString(inputString);
+        inputString = readString();
         if(feof(stdin)){
             break;
         }
-        list* dataBase = parsString(inputString);
-        node* ptr = dataBase->data;
-        //readList(dataBase);
-        jobs = applicate(dataBase, jobs); 
+        dataBase = parsString(inputString);
+        jobs = applicate(dataBase, jobs);
+		deleteList(dataBase);
+		dataBase = NULL;
         checkJobs(jobs);
     }
-    printf("EXITTING\n");
+    quitFunction(jobs, dataBase);
 }
 
 void getdata(char* buf, char** user, char** pwd, char* host){
-    *pwd = getcwd(NULL, 256);
+    *pwd = getcwd(NULL, 24);
     *user = getenv("USER");
     gethostname(host, _SC_HOST_NAME_MAX);
     *buf = '\0';
@@ -76,23 +82,31 @@ void getdata(char* buf, char** user, char** pwd, char* host){
     strcat(buf, "$");
     strcat(buf, WHITE);
     strcat(buf, " ");
+    free(*pwd);
 }
 
-void readString(char* string){
+char* readString(void){
     int i = 0;
-    char s = '\0';
+    char s;
+    char* rtrn = calloc(1, sizeof(char));
     while(1){
         s = getchar();
+        rtrn = realloc(rtrn, i + 1);
         if(s == '\n' || s == EOF){
-            string[i] = '\0';
+            if(s == EOF){
+                free(rtrn);
+                break;
+            }
+            rtrn[i] = '\0';
             break;
         }
-        string[i] = s;
+        rtrn[i] = s;
         i++;
     }
+    return rtrn;
 }
 
-int internalApplicate(node* command, job* currJob, job* firstJob, list* list){
+int internalApplicate(node* command, job* firstJob, list* list){
     if(strcmp(command->data[0], "quit") == 0){
         quitFunction(firstJob, list);
         return 0;
@@ -117,13 +131,17 @@ int internalApplicate(node* command, job* currJob, job* firstJob, list* list){
         jobsFunction(firstJob);
         return 0;
     }
+    if(strcmp(command->data[0], "--help") == 0){
+        helpFunction();
+        return 0;
+    }
     return 1;
 }
 
 list* parsString(char* string){
     int charCount = 0;
     int probelFlag = 1;
-    for(int i = 0; i < strlen(string) + 1; i++){
+    for(size_t i = 0; i < strlen(string) + 1; i++){
         if(string[i] == ' '){
             if(probelFlag == 1){
                 continue;
@@ -138,10 +156,14 @@ list* parsString(char* string){
             charCount++;
         }
     }
-    if(string[charCount - 2] == ' '){
-        string[charCount - 2] = '\0';
+    if(strlen(string) > 1){
+        if(string[charCount - 2] == ' '){
+            string[charCount - 2] = '\0';
+        }else{
+            string[charCount - 1] = '\0';
+        }
     }else{
-        string[charCount] = '\0';
+        string[0] = '\0';
     }
     int wordCount = 0;// Сколько слов в команде
     int commandCharCount = 0;// Сколько символов в команде
@@ -149,7 +171,7 @@ list* parsString(char* string){
     int exit_flag = 0;// Нужен специально для выхода при встрече перенаправлений, т.к. все что идет после воспринимается как одно слово
     node* list = NULL;
     struct list* commandList = NULL;
-    for(int z= 0; z < strlen(string) + 1; z++){
+    for(size_t z= 0; z < strlen(string) + 1; z++){
         if(string[z] == ' '){
             wordCount++;
         }
@@ -192,8 +214,10 @@ list* parsString(char* string){
         if(string[z] == '\0'){
             //printf("Встретил конец \n");
             flag = 5;
-            if(string[z - 1] == ' '){
-                wordCount--;
+            if(z > 0){
+                if(string[z - 1] == ' '){
+                    wordCount--;
+                }
             }
             wordCount++;
             commandCharCount--;
@@ -269,7 +293,6 @@ list* parsString(char* string){
                 perror("malloc");
                 exit(EXIT_FAILURE);
             }
-            pars[wordCount] = NULL;
 
             int startPos = z - commandCharCount;
             //printf("\n\tParser\nСтартуем от сюда: %d \n", startPos);
@@ -278,14 +301,13 @@ list* parsString(char* string){
                 charCount = 0; //Сколько символов в одном слове
                 int rewrite = startPos;
                 //Разделим на слова
-                for(int j = startPos; j < z; j++){
+                for(size_t j = startPos; j < z; j++){
                     if(string[j] == ' '){
                         startPos = j+1;
                         break;
                     }
                     charCount++;
                 }
-                //printf("CharCount is %d \n", charCount);
                 pars[i] = malloc((charCount + 1) * sizeof(char));
                 if(pars[i] == NULL){
                     perror("malloc");
@@ -308,8 +330,10 @@ list* parsString(char* string){
             flag = 0;
             commandCharCount = 0;
             wordCount = 0;
-            while(string[z+1] == ' '){
-                z++;
+            if(string[z] != '\0'){
+                while(string[z + 1] == ' '){
+                    z++;
+                }
             }
         }
         if(exit_flag == 1){
@@ -333,6 +357,7 @@ list* parsString(char* string){
         }
         ptr = ptr->next;
     }
+    free(string);
     return commandList;
 }
 
@@ -341,7 +366,6 @@ int conv(node* command, job* currJob, job* firstJob, list* list){
     node* ptr = command;
     int count = 0;
     int flag;
-    int empty = EMPTY;
     while(true){
         if(ptr->flag == 11 || ptr->flag == 12){
             count++;
@@ -390,7 +414,7 @@ int conv(node* command, job* currJob, job* firstJob, list* list){
             signal(SIGTTOU, SIG_DFL);
             signal(SIGTSTP, SIG_DFL);
 
-            if(internalApplicate(command, jobs, firstJob, list) == 0){
+            if(internalApplicate(command, firstJob, list) == 0){
                 exit(EXIT_SUCCESS);
             }
 
@@ -438,39 +462,43 @@ int conv(node* command, job* currJob, job* firstJob, list* list){
     }
 }
 
-int defaultApplication(node* command, job* currJob, job* firstJob, list* list){
-    if(internalApplicate(command, currJob, firstJob, list) == 0){
-        //цикл удаления ненужной ячейки в struct jobs
-        job* prev = firstJob;
-        while(firstJob != NULL){
-            if(firstJob->pgid == 0){
+int defaultApplication(node* command, job* currJob, job** firstJob, list* list){
+    if(internalApplicate(command, *firstJob, list) == 0){
+        job* saveJob = *firstJob;
+        job* prev = NULL;
+        while(saveJob != NULL){
+            if((saveJob)->pgid == 0){
+                if(prev == NULL){
+                    *firstJob = NULL;
+                    free(saveJob);
+                    break;
+                }
                 prev->next = NULL;
-                free(firstJob);
+                free(saveJob);
                 break;
             }
-            prev = firstJob;
-            firstJob = firstJob->next;
+            prev = saveJob;
+            saveJob = saveJob->next;
         }
         return 0;
     }else{
         pid_t cpid = fork();
-            if(cpid == 0){
-                setpgid(getpid(), currJob->pgid);
-                if(currJob->state == FG && currJob->pgid == 0){
-                    tcsetpgrp(STDIN_FILENO, getpid());
-                }
-                signal(SIGINT, SIG_DFL);
-                signal(SIGTTIN, SIG_DFL);
-                signal(SIGTTOU, SIG_DFL);
-                signal(SIGTSTP, SIG_DFL);
-                signal(SIGCONT, SIG_DFL);
-
-                execvp(command->data[0], command->data);
-                exit(EXIT_FAILURE);
-            }else if(cpid < 0){
-                perror("fork");
-                exit(EXIT_FAILURE);
-            }
+		if(cpid == 0){
+			setpgid(getpid(), currJob->pgid);
+			if(currJob->state == FG && currJob->pgid == 0){
+				tcsetpgrp(STDIN_FILENO, getpid());
+			}
+			signal(SIGINT, SIG_DFL);
+			signal(SIGTTIN, SIG_DFL);
+			signal(SIGTTOU, SIG_DFL);
+			signal(SIGTSTP, SIG_DFL);
+			signal(SIGCONT, SIG_DFL);
+			execvp(command->data[0], command->data);
+			exit(EXIT_FAILURE);
+		}else if(cpid < 0){
+			perror("fork");
+			exit(EXIT_FAILURE);
+		}
         int status;
         addProcess(&(currJob->conv), cpid, command->data, currJob->state, EXTERNAL);
         if(currJob->pgid == 0){
@@ -489,6 +517,7 @@ int defaultApplication(node* command, job* currJob, job* firstJob, list* list){
             currJob->status = APPLICATING;
         }
     }
+	return 0;
 }
 
 void redirect(node* command){
@@ -550,7 +579,7 @@ void redirect(node* command){
     }
 }
 
-int pipeApplicate(node* commands, job* currJob, job* firstJob, list* list){
+int pipeApplicate(node* commands, job* currJob, job** firstJob, list* list){
     node* ptr = commands;
     while(ptr != NULL){
         switch(ptr->flag){
@@ -565,25 +594,26 @@ int pipeApplicate(node* commands, job* currJob, job* firstJob, list* list){
             case 9:
             case 10:
                 redirect(ptr);
-                job* prev = firstJob;
-                while(firstJob != NULL){
-                    if(firstJob->pgid == 0){
+                job* jobs = *firstJob;
+                job* prev = *firstJob;
+                while(jobs != NULL){
+                    if(jobs->pgid == 0){
                         prev->next = NULL;
-                        free(firstJob);
+                        free(jobs);
                         break;
                     }
-                    prev = firstJob;
-                    firstJob = firstJob->next;
+                    prev = jobs;
+                    jobs = jobs->next;
                 }
                 return 0;
             case 11:
-                if(conv(ptr, currJob, firstJob, list) == 1){
+                if(conv(ptr, currJob, *firstJob, list) == 1){
                     return 1;
                 }else{
                     return 0;
                 }
             case 12:
-                if(conv(ptr, currJob, firstJob, list) == 1){;
+                if(conv(ptr, currJob, *firstJob, list) == 1){;
                    return 1;
                 }else{
                     return 0;
@@ -595,14 +625,12 @@ int pipeApplicate(node* commands, job* currJob, job* firstJob, list* list){
 }
 
 job* applicate(list* commands, job* jobs){
-    job* save = NULL;
     job* rtrn = NULL;
     int jobs_status = EMPTY;
     if(jobs != NULL){
         rtrn = jobs;
         jobs_status = NOT_EMPTY;
     }
-    int flag = 1;
     while(commands != NULL){
         if(jobs_status == NOT_EMPTY){
             while(jobs->next != NULL){
@@ -616,33 +644,29 @@ job* applicate(list* commands, job* jobs){
             rtrn = jobs;
             jobs_status = NOT_EMPTY;
         }
-        if(flag){
-            save = jobs;
-            flag = 0;
-        }
         jobs->conv = NULL;
         jobs->next = NULL;
         switch(commands->flag){
             case 1:
                 (jobs)->state = BG;
-                pipeApplicate(commands->data, jobs, rtrn, commands);
+                pipeApplicate(commands->data, jobs, &rtrn, commands);
                 break;
             case 2:
                 (jobs)->state = FG;
-                if(pipeApplicate(commands->data, jobs, rtrn, commands) == 1){
+                if(pipeApplicate(commands->data, jobs, &rtrn, commands) == 1){
                     return rtrn;
                 }
                 break;
             case 3:
                 (jobs)->state = FG;
-                if(pipeApplicate(commands->data, jobs, rtrn, commands) == 0){
+                if(pipeApplicate(commands->data, jobs, &rtrn, commands) == 0){
                     return rtrn;
                 }
                 break;
             case 4:
             case 5:
                 (jobs)->state = FG;
-                pipeApplicate(commands->data, jobs, rtrn, commands);
+                pipeApplicate(commands->data, jobs, &rtrn, commands);
                 break;
         }
         commands = commands->next;
@@ -720,7 +744,6 @@ void fgFunction(job* jobs, char** command, int flag){
                     tcsetpgrp(STDIN_FILENO, jobs->pgid);
                 }
                 kill(-(jobs->pgid), SIGCONT);
-                process* ptr = jobs->conv;
                 if(flag == FG){
                     while(1){
                         wpid = waitpid(-(jobs->pgid), &status, WUNTRACED);
@@ -746,36 +769,15 @@ void fgFunction(job* jobs, char** command, int flag){
 
 void jobsFunction(job* jobs){
     int count = 0;
-    int flag;
     while(jobs != NULL){
-        /*flag = 0;
-        if(jobs->conv == NULL){
-            jobs = jobs->next;
-            continue;
-        }
-        process* ptr = jobs->conv;
-        while(ptr != NULL){
-            if(ptr->status != EXITED){
-                flag = 1;
-                break;
-            }
-            ptr = ptr->next;
-        }
-        if(flag == 1){
-            count++;
-            printf(BLUE"[%d] PGID: %d STATUS: ", count, jobs->pgid);
-            if(ptr->status == APPLICATING){
+        if(jobs->conv != NULL){
+            if(jobs->status == APPLICATING){
+                printf(BLUE"[%d] PGID: %d STATUS: ", count, jobs->pgid);
                 printf("APPLICATING\n"WHITE);
-            }else if(ptr->status == STOPPED){
+            }else if(jobs->status == STOPPED){
+                printf(BLUE"[%d] PGID: %d STATUS: ", count, jobs->pgid);
                 printf("STOPPED\n"WHITE);
             }
-        }*/
-        if(jobs->status == APPLICATING){
-            printf(BLUE"[%d] PGID: %d STATUS: ", count, jobs->pgid);
-            printf("APPLICATING\n"WHITE);
-        }else if(jobs->status == STOPPED){
-            printf(BLUE"[%d] PGID: %d STATUS: ", count, jobs->pgid);
-            printf("STOPPED\n"WHITE);
         }
         jobs = jobs->next;
     }
@@ -796,38 +798,24 @@ void quitFunction(job* jobs, list* list){
         free(jobs);
         jobs = nextJob;
     }
-    struct list* nextList;
-    node* nextNode;
-    while(list != NULL){
-        nextList = list->next;
-        node* node = list->data;
-        while(node != NULL){
-            nextNode = node->next;
-            char** data = node->data;
-            char* nextData;
-            int i = 0;
-            while(data[i] != NULL){
-                nextData = data[i + 1];
-                free(data[i]);
-                data[i] = nextData;
-                i++;
-            }
-            free(node);
-            node = nextNode;
-        }
-        free(list);
-        list = nextList;
-    }
+    deleteList(list);
+	list = NULL;
+    free(rootPath);
+    close(STDIN_FILENO);
+    close(STDERR_FILENO);
+    close(STDOUT_FILENO);
     exit(0);
 }
 
 int is_exited(job* jobs){
-    process* ptr = jobs->conv;
-    while(ptr != NULL){
-        if(ptr->status != EXITED){
-            return 0;
+    if(jobs->conv != NULL){
+        process* ptr = jobs->conv;
+        while(ptr != NULL){
+            if(ptr->status != EXITED){
+                return 0;
+            }
+            ptr = ptr->next;
         }
-        ptr = ptr->next;
     }
     return 1;
 }
@@ -845,4 +833,34 @@ int is_stopped(job* jobs){
         ptr = ptr->next;
     }
     return flag;
+}
+
+void deleteList(struct list* list){
+    for (struct list* list_ptr = list; list_ptr;) {
+		for (node* ptr = list_ptr->data; ptr;) {
+			for (size_t i = 0; ptr->data[i]; ++i) {
+				free(ptr->data[i]);
+			}
+			free(ptr->data);
+			node* temp = ptr;
+			ptr = ptr->next;
+            free(temp);
+		}
+		struct list* temp_list = list_ptr;
+        list_ptr = list_ptr->next;
+		free(temp_list);
+    }
+}
+
+void helpFunction(){
+    int size = strlen(rootPath) + strlen("/help.txt") + 1;
+    char res[size];
+    strcat(res, rootPath);
+    strcat(res, "/help.txt");
+    int fd = open(res, O_RDONLY, 0666);
+    struct stat filestats;
+    stat(res, &filestats);
+    char buf[filestats.st_size];
+    read(fd, buf, filestats.st_size);
+    write(STDOUT_FILENO, buf, filestats.st_size);
 }
