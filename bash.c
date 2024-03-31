@@ -165,7 +165,7 @@ list* parsString(char* string){
     }else{
         string[0] = '\0';
     }
-    int wordCount = 0;// Сколько слов в команде
+    int wordCount = 0;
     int commandCharCount = 0;// Сколько символов в команде
     int flag = 0;
     int exit_flag = 0;// Нужен специально для выхода при встрече перенаправлений, т.к. все что идет после воспринимается как одно слово
