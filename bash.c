@@ -167,8 +167,8 @@ list* parsString(char* string){
     }
     int wordCount = 0;
     int commandCharCount = 0;
-    int flag = 0;
-    int exit_flag = 0;// Нужен специально для выхода при встрече перенаправлений, т.к. все что идет после воспринимается как одно слово
+    int flag = 0;//добавленный комментарий
+    int exit_flag = 0;
     node* list = NULL;
     struct list* commandList = NULL;
     for(size_t z= 0; z < strlen(string) + 1; z++){
